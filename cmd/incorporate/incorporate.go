@@ -26,6 +26,7 @@ import (
 	"encoding/csv"
 	"flag"
 	"fmt"
+	"github.com/algorand/go-algorand/crypto/merklesignature"
 	"io"
 	"log"
 	"os"
@@ -82,7 +83,7 @@ func validateInput(genesis bookkeeping.Genesis) {
 }
 
 func validateGenesis(genesis bookkeeping.Genesis) {
-	if len(genesis.Allocation) < 3 {
+	if len(genesis.Allocation) < 1 {
 		log.Fatalf("too few allocations in genesis")
 	}
 
@@ -109,8 +110,10 @@ func validateGenesis(genesis bookkeeping.Genesis) {
 			}
 		}
 
-		if alloc.State.MicroAlgos.Raw < config.Consensus[genesis.Proto].MinBalance {
-			log.Fatalf("account %s has less than MinBalance: %d < %d", alloc.Address, alloc.State.MicroAlgos.Raw, config.Consensus[genesis.Proto].MinBalance)
+		if alloc.State.Status != basics.NotParticipating {
+			if alloc.State.MicroAlgos.Raw < config.Consensus[genesis.Proto].MinBalance {
+				log.Fatalf("account %s has less than MinBalance: %d < %d", alloc.Address, alloc.State.MicroAlgos.Raw, config.Consensus[genesis.Proto].MinBalance)
+			}
 		}
 	}
 
@@ -179,6 +182,7 @@ func parseInput() (genesis bookkeeping.Genesis) {
 				Status:          record.Status,
 				MicroAlgos:      basics.MicroAlgos{Raw: record.Algos * 1e6},
 				VoteID:          record.VoteID,
+				StateProofID:    record.StateProofID,
 				SelectionID:     record.SelectionID,
 				VoteFirstValid:  basics.Round(record.VoteFirstValid),
 				VoteLastValid:   basics.Round(record.VoteLastValid),
@@ -214,8 +218,8 @@ func parseMetadata(metadataFile string) (genesis bookkeeping.Genesis, err error)
 func parseRecord(cols []string) (rec record) {
 	var err error
 
-	if len(cols) < 9 {
-		log.Fatal("fewer than 9 columns in cols")
+	if len(cols) < 10 {
+		log.Fatal("fewer than 10 columns in cols")
 	}
 
 	rec.Comment = cols[0]
@@ -253,22 +257,29 @@ func parseRecord(cols []string) (rec record) {
 		log.Fatal(err)
 	}
 	copy(rec.SelectionID[:], sel)
-	vote, err := base64.StdEncoding.DecodeString(cols[5])
+
+	stprf, err := base64.StdEncoding.DecodeString(cols[5])
+	if err != nil {
+		log.Fatal(err)
+	}
+	copy(rec.StateProofID[:], stprf)
+
+	vote, err := base64.StdEncoding.DecodeString(cols[6])
 	if err != nil {
 		log.Fatal(err)
 	}
 	copy(rec.VoteID[:], vote)
 
-	rec.VoteFirstValid, err = strconv.ParseUint(cols[6], 10, 64)
-	if cols[6] != "" && err != nil {
-		log.Fatal(err)
-	}
-	rec.VoteLastValid, err = strconv.ParseUint(cols[7], 10, 64)
+	rec.VoteFirstValid, err = strconv.ParseUint(cols[7], 10, 64)
 	if cols[7] != "" && err != nil {
 		log.Fatal(err)
 	}
-	rec.VoteKeyDilution, err = strconv.ParseUint(cols[8], 10, 64)
+	rec.VoteLastValid, err = strconv.ParseUint(cols[8], 10, 64)
 	if cols[8] != "" && err != nil {
+		log.Fatal(err)
+	}
+	rec.VoteKeyDilution, err = strconv.ParseUint(cols[9], 10, 64)
+	if cols[9] != "" && err != nil {
 		log.Fatal(err)
 	}
 
@@ -281,6 +292,7 @@ type record struct {
 	Algos           uint64
 	Status          basics.Status
 	SelectionID     crypto.VRFVerifier
+	StateProofID    merklesignature.Commitment
 	VoteID          crypto.OneTimeSignatureVerifier
 	VoteFirstValid  uint64
 	VoteLastValid   uint64
