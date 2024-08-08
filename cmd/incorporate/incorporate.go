@@ -83,7 +83,7 @@ func validateInput(genesis bookkeeping.Genesis) {
 }
 
 func validateGenesis(genesis bookkeeping.Genesis) {
-	if len(genesis.Allocation) < 1 {
+	if len(genesis.Allocation) < 3 {
 		log.Fatalf("too few allocations in genesis")
 	}
 
@@ -110,10 +110,8 @@ func validateGenesis(genesis bookkeeping.Genesis) {
 			}
 		}
 
-		if alloc.State.Status != basics.NotParticipating {
-			if alloc.State.MicroAlgos.Raw < config.Consensus[genesis.Proto].MinBalance {
-				log.Fatalf("account %s has less than MinBalance: %d < %d", alloc.Address, alloc.State.MicroAlgos.Raw, config.Consensus[genesis.Proto].MinBalance)
-			}
+		if alloc.State.MicroAlgos.Raw < config.Consensus[genesis.Proto].MinBalance {
+			log.Fatalf("account %s has less than MinBalance: %d < %d", alloc.Address, alloc.State.MicroAlgos.Raw, config.Consensus[genesis.Proto].MinBalance)
 		}
 	}
 
